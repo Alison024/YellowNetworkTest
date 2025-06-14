@@ -6,16 +6,44 @@ import {
   parseRPCResponse,
   RPCMethod,
   createEIP712AuthMessageSigner,
+  createAppSessionMessage,
+  MessageSigner,
 } from "@erc7824/nitrolite";
 
-import { createWalletClient, http, Address, WalletClient } from "viem";
+import {
+  createWalletClient,
+  http,
+  Address,
+  WalletClient,
+  keccak256,
+  toBytes,
+  PrivateKeyAccount,
+} from "viem";
 import { polygon } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-
-import * as dotenv from "dotenv";
 import { randomBytes } from "crypto";
 
+import * as dotenv from "dotenv";
+import { ethers, Wallet } from "ethers";
+
 dotenv.config();
+
+let senderAccount: PrivateKeyAccount;
+let receiverAccount: PrivateKeyAccount;
+let participant: Wallet;
+
+/* ──────── wallet client (Polygon mainnet) ──────── */
+let senderClient: WalletClient;
+
+/* ──────── addresses ──────── */
+let senderAddress: Address;
+let receiverAddress: Address;
+
+/* ──────── WebSocket to ClearNode ──────── */
+let clearNodeUrl: string;
+let ws: WebSocket;
+
+const APP_NAME = "Sentia";
 
 async function main(): Promise<void> {
   /* ──────── keys & accounts ──────── */
@@ -25,32 +53,29 @@ async function main(): Promise<void> {
   if (!SENDER_PK) throw new Error("PRIVATE_KEY_1 env variable isn't set up");
   if (!RECEIVER_PK) throw new Error("PRIVATE_KEY_2 env variable isn't set up");
   // viem converts a raw private key into an Account object
-  const senderAccount = privateKeyToAccount(SENDER_PK);
-  const receiverAccount = privateKeyToAccount(RECEIVER_PK);
+  senderAccount = privateKeyToAccount(SENDER_PK);
+  receiverAccount = privateKeyToAccount(RECEIVER_PK);
+  participant = ethers.Wallet.createRandom();
 
   /* ──────── wallet client (Polygon mainnet) ──────── */
-  const senderClient: WalletClient = createWalletClient({
+  senderClient = createWalletClient({
     account: senderAccount, // the account that will sign
     chain: polygon, // viem chain descriptor
     transport: http("https://polygon-rpc.com"),
   });
 
   /* ──────── addresses ──────── */
-  const senderAddress: Address = senderAccount.address;
-  const receiverAddress: Address = receiverAccount.address;
+  senderAddress = senderAccount.address;
+  receiverAddress = receiverAccount.address;
 
   /* ──────── WebSocket to ClearNode ──────── */
-  const clearNodeUrl = "wss://clearnet.yellow.com/ws";
-  const ws = new WebSocket(clearNodeUrl);
-
-  /* ──────── session key & auth_request ──────── */
-  const randSessionKey: Address = ("0x" +
-    randomBytes(20).toString("hex")) as Address;
+  clearNodeUrl = "wss://clearnet.yellow.com/ws";
+  ws = new WebSocket(clearNodeUrl);
 
   const authRequest: AuthRequest = {
     wallet: senderAddress,
-    participant: randSessionKey,
-    app_name: "Any string",
+    participant: participant.address as Address,
+    app_name: APP_NAME,
     expire: (Math.floor(Date.now() / 1000) + 3600).toString(), // 1 h
     scope: "Any string",
     application: "0x0000000000000000000000000000000000000000", // example
@@ -85,7 +110,7 @@ async function main(): Promise<void> {
               expire: authRequest.expire!,
               allowances: [],
             },
-            { name: authRequest.app_name }
+            { name: APP_NAME }
           );
           // craft auth_verify
           const authVerifyMsg = await createAuthVerifyMessage(
@@ -118,6 +143,36 @@ async function main(): Promise<void> {
       console.error("Error handling message:", error);
     }
   };
+}
+
+async function executeTransfer() {
+  const appDefinition = {
+    protocol: "nitroliterpc",
+    participants: [senderAddress, receiverAddress],
+    weights: [50, 50],
+    quorum: 100,
+    challenge: 0,
+    nonce: Date.now(),
+  };
+  const allocations = [
+    {
+      participant: senderAccount,
+      asset: "usdc",
+      amount: "0.01",
+    },
+    {
+      participant: receiverAddress,
+      asset: "usdc",
+      amount: "0",
+    },
+  ];
+
+  // const signedMessage = await createAppSessionMessage(messageSigner, [
+  //   {
+  //     definition: appDefinition,
+  //     allocations,
+  //   },
+  // ]);
 }
 
 main().catch((err) => {

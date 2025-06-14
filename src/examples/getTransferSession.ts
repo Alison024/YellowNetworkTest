@@ -13,13 +13,15 @@ export async function getTransferSessionTx(): Promise<string> {
   const PRIVATE_KEY = process.env.PRIVATE_KEY;
   if (!PRIVATE_KEY) throw new Error("PRIVATE_KEY isn't set up");
 
-  const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
+  const provider = new ethers.providers.JsonRpcProvider(
+    "https://polygon-rpc.com"
+  );
   const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 
   const sender: Address = wallet.address as Address;
   const recipient: Address = "" as Address;
   const usdc: Address = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359" as Address;
-  const amount = "1000000"; // 1 USDC (6 dec)
+  const amount = "10000"; // 1 USDC (6 dec)
 
   const iface = new ethers.Interface(["function transfer(address,uint256)"]);
   const calldata = iface.encodeFunctionData("transfer", [recipient, amount]);
@@ -28,6 +30,29 @@ export async function getTransferSessionTx(): Promise<string> {
     const digest = ethers.id(JSON.stringify(payload));
     return wallet.signMessage(ethers.getBytes(digest));
   }) as MessageSigner;
+
+  const appDefinition = {
+    protocol: "nitroliterpc",
+    participants: [participantA, participantB],
+    weights: [100, 0],
+    quorum: 100,
+    challenge: 0,
+    nonce: Date.now(),
+  };
+
+  // Define allocations
+  const allocations = [
+    {
+      participant: participantA,
+      asset: "usdc",
+      amount: amount,
+    },
+    {
+      participant: participantB,
+      asset: "usdc",
+      amount: "0",
+    },
+  ];
 
   const params: CreateAppSessionRequest[] = [
     {
