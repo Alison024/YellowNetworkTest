@@ -1,6 +1,4 @@
-// Import your preferred WebSocket library
 import WebSocket from "ws"; // Node.js
-// or use the browser's built-in WebSocket
 import {
   createAuthRequestMessage,
   createAuthVerifyMessage,
@@ -24,7 +22,7 @@ async function main() {
 
   const authRequestMsg = await createAuthRequestMessage({
     wallet: sender,
-    participant: sender,
+    participant: sender, // session key must be here
     app_name: "Any string",
     expire: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiration
     scope: "Any string",
@@ -51,7 +49,7 @@ async function main() {
 
           // Create EIP-712 message signer function
           const eip712MessageSigner = createEIP712AuthMessageSigner(
-            walletClient, // Your wallet client instance
+            wallet, // Your wallet client instance
             {
               // EIP-712 message structure, data should match auth_request
               scope: authRequestMsg.scope,

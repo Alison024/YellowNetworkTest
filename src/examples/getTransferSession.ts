@@ -32,12 +32,12 @@ export async function getTransferSessionTx(): Promise<string> {
   const params: CreateAppSessionRequest[] = [
     {
       definition: {
-        protocol: "nitroliterpc",
+        protocol: "any string",
         participants: [sender, "server"],
         weights: [50, 50],
         quorum: 100,
         challenge: 0,
-        allocate_amount: 12,
+        allocate_amount: 1,
         nonce: Date.now(),
       },
       allocations: [
